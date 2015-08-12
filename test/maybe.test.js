@@ -7,19 +7,20 @@ var jsv = require('jsverify');
 var Maybe = require('..').Maybe;
 
 var MaybeGen = R.curry(function(a, n) {
-  return n % 2 === 0 ? Maybe.Just(a.generator(n)) : Maybe.Nothing();
+  return n % 2 === 0 ? Maybe.Just(a.generator(n)) : Maybe.Nothing;
 });
 
 var MaybeShow = R.curry(function(a, m) {
-  return (Maybe.isJust(m)) ?
-    'Just(' + a.show(m.value) + ')' :
-    'Nothing';
+  return a.show(Maybe.toString(m));
 });
 
 var MaybeShrink = R.curry(function(a, m) {
-  return (Maybe.isJust(m)) ?
-    [Maybe.Nothing()].concat(a.shrink(m.value).map(Maybe.Just)) :
-    [];
+  return m.match({
+    Nothing: R.always([]),
+    Just: function (x) {
+      return [Maybe.Nothing].concat(a.shrink(x).map(Maybe.Just))
+    }
+  });
 });
 
 var MaybeArb = function(a) {
@@ -89,7 +90,7 @@ describe('Maybe', function() {
       return Maybe.Just(n1).reduce(R.uncurryN(2, f), n2) === f(n2)(n1);
     }));
     jsv.assert(jsv.forall('nat -> nat -> nat', 'nat', function(f, n) {
-      return Maybe.Nothing().reduce(R.uncurryN(2, f), n) === n;
+      return Maybe.Nothing.reduce(R.uncurryN(2, f), n) === n;
     }));
   });
 });
@@ -98,17 +99,17 @@ describe('Maybe usage', function() {
 
   describe('checking for Just | Nothing', function() {
     it('should allow the user to check if the instance is a Nothing', function() {
-      assert.equal(true, Maybe(null).isNothing());
-      assert.equal(false, Maybe(42).isNothing());
+      assert.equal(true, Maybe.isNothing(Maybe.from(null)));
+      assert.equal(false, Maybe.isNothing(Maybe.from(42)));
     });
 
     it('should allow the user to check if the instance is a Just', function() {
-      assert.equal(true, Maybe(42).isJust());
-      assert.equal(false, Maybe(null).isJust());
+      assert.equal(true, Maybe.isJust(Maybe.from(42)));
+      assert.equal(false, Maybe.isJust(Maybe.from(null)));
     });
 
     it('can check the type statically', function() {
-      var nada = Maybe.Nothing();
+      var nada = Maybe.Nothing;
       var just1 = Maybe.Just(1);
       assert.equal(Maybe.isJust(nada), false);
       assert.equal(Maybe.isNothing(nada), true);
@@ -120,11 +121,11 @@ describe('Maybe usage', function() {
   describe('#getOrElse', function() {
 
     it('should return the contained value for if the instance is a Just', function() {
-      assert.equal(42, Maybe(42).getOrElse(24));
+      assert.equal(42, Maybe.getOrElse(24, Maybe.from(42)));
     });
 
     it('should return the input value if the instance is a Nothing', function() {
-      assert.equal(24, Maybe(null).getOrElse(24));
+      assert.equal(24, Maybe.getOrElse(24, Maybe.from(null)));
     });
 
   });
@@ -132,13 +133,13 @@ describe('Maybe usage', function() {
   describe('#toString', function() {
 
     it('returns the string representation of a Just', function() {
-      assert.strictEqual(Maybe.Just([1, 2, 3]).toString(),
+      assert.strictEqual(Maybe.toString(Maybe.Just([1, 2, 3])),
                          'Maybe.Just([1, 2, 3])');
     });
 
     it('returns the string representation of a Nothing', function() {
-      assert.strictEqual(Maybe.Nothing().toString(),
-                         'Maybe.Nothing()');
+      assert.strictEqual(Maybe.toString(Maybe.Nothing),
+                         'Maybe.Nothing');
     });
 
   });
@@ -153,7 +154,7 @@ describe('Maybe usage', function() {
 
     it('returns the first argument for a Nothing', function() {
       jsv.assert(jsv.forall('nat -> nat', 'nat', 'nat', function(f, n) {
-        return R.equals(Maybe.maybe(n, f, Maybe.Nothing()), n);
+        return R.equals(Maybe.maybe(n, f, Maybe.Nothing), n);
       }));
     });
   });

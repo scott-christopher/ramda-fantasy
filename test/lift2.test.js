@@ -5,12 +5,12 @@ var assert = require('assert');
 
 describe('lift2', function() {
 
-  var i1 = Identity.of(1);
-  var i2 = Identity.of(2);
+  var i1 = Identity(1);
+  var i2 = Identity(2);
 
   it('lifts the values of two applys into a curried function', function() {
     var result = lift2(R.add, i1, i2);
-    assert.equal(true, Identity.of(3).equals(result));
+    assert.equal(true, Identity(3).equals(result));
   });
 
   it('is itself curried', function() {

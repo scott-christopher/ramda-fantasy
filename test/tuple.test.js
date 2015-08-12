@@ -92,8 +92,8 @@ describe('Tuple usage', function() {
   describe('creation', function() {
     it('should be curried', function() {
       var tpl = Tuple('dr')(true);
-      assert.equal('dr', tpl[0]);
-      assert.equal(true, tpl[1]);
+      assert.equal('dr', tpl._1());
+      assert.equal(true, tpl._2());
     });
   });
 
@@ -101,8 +101,8 @@ describe('Tuple usage', function() {
     var tuple = Tuple('nacho', 'cheese');
 
     it('should work with indexes', function() {
-      assert.equal('nacho', tuple[0]);
-      assert.equal('cheese', tuple[1]);
+      assert.equal('nacho', tuple._1());
+      assert.equal('cheese', tuple._2());
     });
 
     it('should return the value in the first position', function() {
@@ -110,28 +110,10 @@ describe('Tuple usage', function() {
       assert.equal('cheese', Tuple.snd(tuple));
     });
 
-    it('should work with head', function() {
-      assert.equal('nacho', R.head(tuple));
-    });
-
-    it('should work with nth', function() {
-      assert.equal('cheese', R.nth(1, tuple));
-    });
-
-    it('should work with tail', function() {
-      assert.equal('cheese', R.tail(tuple));
-    });
-
-    it('should work with take', function() {
-      assert.equal('nacho', R.take(1, tuple)[0]);
-    }
-    );
-    it('should work with drop', function() {
-      assert.equal('cheese', R.drop(1, tuple)[0]);
-    });
-
-    it('will tell us the length', function() {
-      assert.equal(2, tuple.length);
+    it('should unapply', function() {
+      assert(tuple.unapply(function(x, y) {
+        return x === 'nacho' && y === 'cheese';
+      }));
     });
   });
 
@@ -140,20 +122,20 @@ describe('Tuple usage', function() {
 
     it('only maps the snd', function() {
       var t = tuple.map(add('coco'));
-      assert.equal('mixed', t[0]);
-      assert.equal('coconuts', t[1]);
+      assert.equal('mixed', t._1());
+      assert.equal('coconuts', t._2());
     });
 
     it('will combine two tuples', function() {
       var t = tuple.concat(Tuple(' chocolate', ' bars'));
-      assert.equal('mixed chocolate', t[0]);
-      assert.equal('nuts bars', t[1]);
+      assert.equal('mixed chocolate', t._1());
+      assert.equal('nuts bars', t._2());
     });
 
     it('will apply and concat', function() {
       var t = Tuple('Re', 'dough').map(add).ap(tuple);
-      assert.equal('Remixed', t[0]);
-      assert.equal('doughnuts', t[1]);
+      assert.equal('Remixed', t._1());
+      assert.equal('doughnuts', t._2());
     });
   });
 

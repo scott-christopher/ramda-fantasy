@@ -1,4 +1,4 @@
-var _equals = require('ramda').equals;
+var R = require('ramda');
 
 
 module.exports = {
@@ -9,7 +9,7 @@ module.exports = {
 
   getEquals: function(constructor) {
     return function equals(that) {
-      return that instanceof constructor && _equals(this.value, that.value);
+      return that instanceof constructor && R.equals(this.value, that.value);
     };
   },
 
@@ -36,6 +36,31 @@ module.exports = {
     };
   },
 
-  returnThis: function() { return this; }
+  returnThis: function() { return this; },
 
+  attachMethods: function(type) {
+    var methods = R.intersection([
+      'equals',
+      'concat',
+      'empty',
+      'map',
+      'ap',
+      'of',
+      'reduce',
+      'sequence',
+      'chain',
+      'extend',
+      'extract',
+      'toString'
+    ], R.keys(type));
+
+    return R.reduce(function(t, methodName) {
+      if (!R.has(methodName, t.prototype)) {
+        t.prototype[methodName] = function () {
+          return R.partialRight(t[methodName], this).apply(null, arguments);
+        };
+      }
+      return t;
+    }, type, methods);
+  }
 };

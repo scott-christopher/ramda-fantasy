@@ -1,31 +1,32 @@
 var R = require('ramda');
+var Type = require('./Type');
+var attachMethods = require('./internal/util').attachMethods;
 
-// `f` is a function that takes two function arguments: `reject` (failure) and `resolve` (success)
-function Future(f) {
-  if (!(this instanceof Future)) {
-    return new Future(f);
-  }
-  this._fork = f;
-}
 
-Future.prototype.fork = function(reject, resolve) {
+var Future = Type.product('f');
+
+Future.fork = R.curry(function(reject, resolve, future) {
   try {
-    this._fork(reject, resolve);
+    future.unapply(function(f) {
+      f(reject, resolve);
+    });
   } catch(e) {
     reject(e);
   }
+});
+
+Future.prototype.fork = function(reject, resolve) {
+  return Future.fork(reject, resolve, this);
 };
 
-// functor
-Future.prototype.map = function(f) {
-  return this.chain(function(a) { return Future.of(f(a)); });
-};
+Future.map = R.curry(function(f, future) {
+  return Future.chain(function(a) {
+    return Future.of(f(a));
+  }, future);
+});
 
-// apply
-Future.prototype.ap = function(m) {
-  var self = this;
-
-  return new Future(function(rej, res) {
+Future.ap = R.curry(function(fF, fX) {
+  return Future(function(rej, res) {
     var applyFn, val;
     var doReject = R.once(rej);
 
@@ -35,74 +36,68 @@ Future.prototype.ap = function(m) {
       }
     }
 
-    self.fork(doReject, function(fn) {
+    fF.fork(doReject, function(fn) {
       applyFn = fn;
       resolveIfDone();
     });
 
-    m.fork(doReject, function(v) {
+    fX.fork(doReject, function(v) {
       val = v;
       resolveIfDone();
     });
-
   });
+});
 
+Future.prototype.ap = function(fX) {
+  return Future.ap(this, fX);
 };
 
-// applicative
 Future.of = function(x) {
-  // should include a default rejection?
-  return new Future(function(_, resolve) { return resolve(x); });
+  return Future(function(_, resolve) { return resolve(x); });
 };
 
-Future.prototype.of = Future.of;
+Future.chain = R.curry(function(f, future) {
+  return Future(function(reject, resolve) {
+    return Future.fork(reject, function(x) {
+      return Future.fork(reject, resolve, f(x));
+    }, future);
+  });
+});
 
-// chain
-//  f must be a function which returns a value
-//  f must return a value of the same Chain
-//  chain must return a value of the same Chain
-//:: Future a, b => (b -> Future c) -> Future c
-Future.prototype.chain = function(f) {  // Sorella's:
-  return new Future(function(reject, resolve) {
-    return this.fork(function(a) { return reject(a); },
-                     function(b) { return f(b).fork(reject, resolve); });
-  }.bind(this));
-};
+Future.chainReject = R.curry(function(f, future) {
+  return Future(function(reject, resolve) {
+    return Future.fork(function(x) {
+      return Future.fork(reject, resolve, f(x));
+    }, resolve, future);
+  });
+});
 
-// chainReject
-// Like chain but operates on the reject instead of the resolve case.
-//:: Future a, b => (a -> Future c) -> Future c
 Future.prototype.chainReject = function(f) {
-  return new Future(function(reject, resolve) {
-    return this.fork(function(a) { return f(a).fork(reject, resolve); },
-                     function(b) { return resolve(b);
-    });
-  }.bind(this));
+  return Future.chainReject(f, this);
 };
 
-// monad
-// A value that implements the Monad specification must also implement the Applicative and Chain specifications.
-// see above.
+Future.bimap = R.curry(function(errFn, successFn, future) {
+  return Future(function(reject, resolve) {
+    return Future.fork(
+      R.compose(reject, errFn),
+      R.compose(resolve, successFn),
+      future
+    );
+  });
+});
 
 Future.prototype.bimap = function(errFn, successFn) {
-  var self = this;
-  return new Future(function(reject, resolve) {
-    self.fork(function(err) {
-      reject(errFn(err));
-    }, function(val) {
-      resolve(successFn(val));
-    });
-  });
+  return Future.bimap(errFn, successFn, this);
 };
 
 Future.reject = function(val) {
-  return new Future(function(reject) {
+  return Future(function(reject) {
     reject(val);
   });
 };
 
-Future.prototype.toString = function() {
-  return 'Future(' + R.toString(this._fork) + ')';
+Future.toString = function(future) {
+  return 'Future(' + future.unapply(R.toString) + ')';
 };
 
 Future.memoize = function(f) {
@@ -131,7 +126,7 @@ Future.memoize = function(f) {
     );
   }
 
-  return new Future(function(reject, resolve) {
+  return Future(function(reject, resolve) {
 
     switch(status) {
       case 'IDLE': doResolve(reject, resolve); break;
@@ -143,4 +138,4 @@ Future.memoize = function(f) {
   });
 };
 
-module.exports = Future;
+module.exports = attachMethods(Future);

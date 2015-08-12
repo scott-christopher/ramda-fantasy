@@ -1,52 +1,43 @@
 var R = require('ramda');
+var Type = require('./Type');
+var attachMethods = require('./internal/util').attachMethods
 
-module.exports = IO;
 
-var compose = R.compose;
+var IO = Type.product('fn');
 
-function IO(fn) {
-  if (!(this instanceof IO)) {
-    return new IO(fn);
-  }
-  this.fn = fn;
-}
-
-// `f` must return an IO
-IO.prototype.chain = function(f) {
-  var io = this;
-  return new IO(function() {
-    var next = f(io.fn.apply(io, arguments));
-    return next.fn.apply(next, arguments);
+IO.chain = R.curry(function(f, io) {
+  return IO(function() {
+    var applyArgs = R.apply(R.__, arguments);
+    return f(io.unapply(applyArgs)).unapply(applyArgs);
   });
-};
+});
 
-IO.prototype.map = function(f) {
-  var io = this;
-  return new IO(compose(f, io.fn));
-};
-
-// `this` IO must wrap a function `f` that takes an IO (`thatIo`) as input
-// `f` must return an IO
-IO.prototype.ap = function(thatIo) {
-  return this.chain(function(f) {
-    return thatIo.map(f);
+IO.map = R.curry(function(f, io) {
+  return io.unapply(function(ioF) {
+    return IO(R.compose(f, ioF));
   });
+});
+
+IO.ap = R.curry(function(ioF, ioX) {
+  return IO.chain(IO.map(R.__, ioX), ioF);
+});
+
+IO.prototype.ap = function(x) {
+  return IO.ap(this, x);
 };
 
 IO.runIO = function(io) {
-  return io.runIO.apply(io, [].slice.call(arguments, 1));
+  return io.unapply(R.apply(R.__, R.tail(arguments)));
 };
 
 IO.prototype.runIO = function() {
-  return this.fn.apply(this, arguments);
+  return IO.runIO.apply(null, R.prepend(this, arguments));
 };
 
-IO.prototype.of = function(x) {
-  return new IO(function() { return x; });
+IO.of = IO.prototype.of = R.compose(IO, R.always);
+
+IO.toString = function(io) {
+  return 'IO(' + io.unapply(R.toString) + ')';
 };
 
-IO.of = IO.prototype.of;
-
-IO.prototype.toString = function() {
-  return 'IO(' + R.toString(this.fn) + ')';
-};
+module.exports = attachMethods(IO);

@@ -175,7 +175,7 @@ describe('Future', function() {
 
     it('maps the first function over the rejected value', function() {
       var f = Future.reject('err');
-      var result = f.bimap(R.concat('map over '));
+      var result = f.bimap(R.concat('map over '), R.identity);
       result.fork(function(e) {
         assert.equal(e, 'map over err');
       });
@@ -183,7 +183,7 @@ describe('Future', function() {
 
     it('maps the second function over the resolved value', function() {
       var f = Future.of(1);
-      var result = f.bimap(null, R.add(1));
+      var result = f.bimap(R.identity, R.add(1));
       result.fork(null, function(v) {
         assert.equal(v, 2);
       });

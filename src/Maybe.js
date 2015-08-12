@@ -1,122 +1,60 @@
 var R = require('ramda');
+var Type = require('./Type');
+var attachMethods = require('./internal/util').attachMethods;
 
-var util = require('./internal/util.js');
 
-function Maybe(x) {
-  return x == null ? _nothing : Maybe.Just(x);
+var Maybe = Type.sum({ Just: ['value'], Nothing: [] });
+
+Maybe.of = Maybe.prototype.of = Maybe.Just;
+
+Maybe.isJust = function isJust(x) {
+  return x.match({ Just: R.T, Nothing: R.F });
 }
+Maybe.isNothing = R.complement(Maybe.isJust);
 
-function _Just(x) {
-  this.value = x;
-}
-util.extend(_Just, Maybe);
-
-function _Nothing() {}
-util.extend(_Nothing, Maybe);
-
-var _nothing = new _Nothing();
-
-Maybe.Nothing = function() {
-  return _nothing;
-};
-
-Maybe.Just = function(x) {
-  return new _Just(x);
-};
-
-Maybe.of = Maybe.Just;
-
-Maybe.prototype.of = Maybe.Just;
-
-Maybe.isJust = function(x) {
-  return x instanceof _Just;
-};
-
-Maybe.isNothing = function(x) {
-  return x === _nothing;
-};
-
-Maybe.maybe = R.curry(function(nothingVal, justFn, m) {
-  return m.reduce(function(_, x) {
-    return justFn(x);
-  }, nothingVal);
+Maybe.maybe = R.curry(function maybe(nothingVal, justFn, m) {
+  return m.match({
+    Just: justFn,
+    Nothing: R.always(nothingVal)
+  });
 });
 
-// functor
-_Just.prototype.map = function(f) {
-  return this.of(f(this.value));
+Maybe.map = R.curry(function map(f, m) {
+  return Maybe.maybe(m, R.compose(Maybe.Just, f), m);
+});
+
+Maybe.ap = R.curry(function ap(mF, mX) {
+  return Maybe.maybe(mF, Maybe.map(R.__, mX), mF);
+});
+
+Maybe.prototype.ap = function ap(x) {
+  return Maybe.ap(this, x);
+}
+
+Maybe.chain = R.curry(function chain(f, m) {
+  return Maybe.maybe(m, f, m);
+});
+
+Maybe.equals = R.curry(function equals(m1, m2) {
+  return Maybe.maybe(Maybe.isNothing(m2), function (val1) {
+    return Maybe.maybe(false, R.equals(val1), m2);
+  }, m1);
+});
+
+Maybe.getOrElse = R.curry(function getOrElse(orElse, m) {
+  return Maybe.maybe(orElse, R.identity, m);
+});
+
+Maybe.reduce = R.curry(function reduce(f, init, m) {
+  return Maybe.maybe(init, R.partial(f, init), m);
+});
+
+Maybe.from = R.ifElse(R.isNil, R.always(Maybe.Nothing), Maybe.Just);
+
+Maybe.toString = function toString(m) {
+  return Maybe.maybe('Maybe.Nothing', function(x) {
+    return 'Maybe.Just(' + R.toString(x) + ')';
+  }, m);
 };
 
-_Nothing.prototype.map = util.returnThis;
-
-// apply
-// takes a Maybe that wraps a function (`app`) and applies its `map`
-// method to this Maybe's value, which must be a function.
-_Just.prototype.ap = function(m) {
-  return m.map(this.value);
-};
-
-_Nothing.prototype.ap = util.returnThis;
-
-// applicative
-// `of` inherited from `Maybe`
-
-
-// chain
-//  f must be a function which returns a value
-//  f must return a value of the same Chain
-//  chain must return a value of the same Chain
-_Just.prototype.chain = util.baseMap;
-
-_Nothing.prototype.chain = util.returnThis;
-
-
-//
-_Just.prototype.datatype = _Just;
-
-_Nothing.prototype.datatype = _Nothing;
-
-// monad
-// A value that implements the Monad specification must also implement the Applicative and Chain specifications.
-// see above.
-
-// equality method to enable testing
-_Just.prototype.equals = util.getEquals(_Just);
-
-_Nothing.prototype.equals = function(that) {
-  return that === _nothing;
-};
-
-Maybe.prototype.isNothing = function() {
-  return this === _nothing;
-};
-
-Maybe.prototype.isJust = function() {
-  return this instanceof _Just;
-};
-
-_Just.prototype.getOrElse = function() {
-  return this.value;
-};
-
-_Nothing.prototype.getOrElse = function(a) {
-  return a;
-};
-
-_Just.prototype.reduce = function(f, x) {
-  return f(x, this.value);
-};
-
-_Nothing.prototype.reduce = function(f, x) {
-  return x;
-};
-
-_Just.prototype.toString = function() {
-  return 'Maybe.Just(' + R.toString(this.value) + ')';
-};
-
-_Nothing.prototype.toString = function() {
-  return 'Maybe.Nothing()';
-};
-
-module.exports = Maybe;
+module.exports = attachMethods(Maybe);

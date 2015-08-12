@@ -1,24 +1,9 @@
 var R = require('ramda');
+var Type = require('./Type');
+var attachMethods = require('./internal/util').attachMethods;
 
 
-function Tuple(x, y) {
-  switch (arguments.length) {
-    case 0:
-      throw new TypeError('no arguments to Tuple');
-    case 1:
-      return function(y) {
-        return new _Tuple(x, y);
-      };
-    default:
-      return new _Tuple(x, y);
-  }
-}
-
-function _Tuple(x, y) {
-  this[0] = x;
-  this[1] = y;
-  this.length = 2;
-}
+var Tuple = Type.product('_1', '_2');
 
 function ensureConcat(xs) {
   xs.forEach(function(x) {
@@ -29,37 +14,42 @@ function ensureConcat(xs) {
 }
 
 Tuple.fst = function(x) {
-  return x[0];
+  return x.unapply(R.nthArg(0));
 };
 
 Tuple.snd = function(x) {
-  return x[1];
+  return x.unapply(R.nthArg(1));
 };
 
-// semigroup
-_Tuple.prototype.concat = function(x) {
-  ensureConcat([this[0], this[1]]);
-  return Tuple(this[0].concat(x[0]), this[1].concat(x[1]));
+Tuple.concat = R.curry(function concat(t1, t2) {
+  ensureConcat([t1._1(), t1._2(), t2._1(), t2._2()]);
+  return Tuple(t1._1().concat(t2._1()), t1._2().concat(t2._2()));
+});
+
+Tuple.prototype.concat = function concat(otherT) {
+  return Tuple.concat(this, otherT);
 };
 
-// functor
-_Tuple.prototype.map = function(f) {
-  return Tuple(this[0], f(this[1]));
+Tuple.map = R.over(Tuple._2);
+
+Tuple.ap = R.curry(function ap(tf, tx) {
+  ensureConcat([tf._1(), tx._1()]);
+  return Tuple(tf._1().concat(tx._1()), tf._2()(tx._2()));
+});
+
+Tuple.prototype.ap = function ap(x) {
+  return Tuple.ap(this, x);
 };
 
-// apply
-_Tuple.prototype.ap = function(m) {
-  ensureConcat([this[0]]);
-  return Tuple(this[0].concat(m[0]), this[1](m[1]));
+Tuple.equals = R.curry(function equals(t1, t2) {
+  return t1 instanceof Tuple &&
+         t2 instanceof Tuple &&
+         R.equals(t1._1(), t2._1()) &&
+         R.equals(t1._2(), t2._2());
+});
+
+Tuple.toString = function toString(t) {
+  return 'Tuple(' + R.toString(t._1()) + ', ' + R.toString(t._2()) + ')';
 };
 
-// setoid
-_Tuple.prototype.equals = function(that) {
-  return that instanceof _Tuple && R.equals(this[0], that[0]) && R.equals(this[1], that[1]);
-};
-
-_Tuple.prototype.toString = function() {
-  return 'Tuple(' + R.toString(this[0]) + ', ' + R.toString(this[1]) + ')';
-};
-
-module.exports = Tuple;
+module.exports = attachMethods(Tuple);
